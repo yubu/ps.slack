@@ -2801,13 +2801,13 @@ Function Add-slackReminders {
     .Description
         Add reminders
     .Example
-        Add-slackReminders -text "Eat banana" -time (convertto-epoch (get-date).AddDays(5))
+        Add-slackReminders -text "Eat banana" -time (convertto-epoch ((get-date).AddMinutes(25)).ToUniversalTime())
         Create reminedr, time is UTC
     .Example
-        Add-slackReminders -text "Eat banana" -time ((get-date -date "10/18/2016 12:05") | convertTo-epoch)
+        Add-slackReminders -text "Eat banana" -time ((get-date -date "10/15/2016 15:48").ToUniversalTime() | convertTo-epoch)
         Add reminder, time is UTC
     .Example
-        Get-slackUsers | ? name -match user | Add-slackReminders -text "Eat banana" -time (convertto-epoch (get-date).AddHours(12))
+        Get-slackUsers | ? name -match user | Add-slackReminders -text "Eat banana" -time (convertto-epoch ((get-date).AddHours(12)).ToUniversalTime())
         Create reminder for user, time is UTC
         #>
 
