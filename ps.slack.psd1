@@ -98,7 +98,7 @@ PrivateData = @{
     PSData = @{
 
         # Tags applied to this module. These help with module discovery in online galleries.
-        Tags = 'slack', 'api', 'chatops'
+        Tags = 'slack','api','chatops'
 
         # A URL to the license for this module.
         # LicenseUri = ''
