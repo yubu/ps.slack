@@ -1427,7 +1427,7 @@ function Get-slackFiles {
         Get-slackFiles | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},name,title,filetype | ft -a
         Get files, time in UTC+1
     .Example
-        Get-slackFiles | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},@{n="createdBy";e={(gskusrs | ? id -eq $_.user).name}},@{n="inChanel";e={(gskch | ? id -eq $_.channels).name}},name,filetype,size | ft -a
+        Get-slackFiles | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},@{n="createdBy";e={(gskusrs | ? id -eq $_.user).name}},@{n="inChanel";e={(gskch | ? id -eq $_.channels).name}},title,name,filetype,size | ft -a
         Get files, time in UTC+1
     .Example
         gskfiles  | ? name -match errors | select preview  | fl *
@@ -1747,7 +1747,7 @@ function Remove-slackFiles {
         Delete files
     #>
     
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess,ConfirmImpact='High')]
     [Alias("Delete-slackFiles","delskfiles","rmskfiles")]
     Param (
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
@@ -1771,8 +1771,12 @@ function Remove-slackFiles {
         }
             
         write-verbose ($body | ConvertTo-Json)
-            
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+
+        if ([bool]$WhatIfPreference.IsPresent) {}
+        if ($PSCmdlet.ShouldProcess($file,"Remove file.")) {     
+            $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        }
+        
         if ($a.ok) {$a} else {$a}
    }   
 }
@@ -2492,7 +2496,7 @@ function Remove-slackGroupsUser {
         Removes a user from a private channel
     #>
 
-    [CmdletBinding()]
+    [CmdletBinding(SupportsShouldProcess,ConfirmImpact='High')]
     [Alias("Kick-slackGroupsUser","rmgrpusr")]
     Param (
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
@@ -2518,8 +2522,12 @@ function Remove-slackGroupsUser {
         }
             
         write-verbose ($body | ConvertTo-Json)
-            
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+
+        if ([bool]$WhatIfPreference.IsPresent) {}
+        if ($PSCmdlet.ShouldProcess($id,"Remove user from private channel.")) { 
+            $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        }
+
         if ($a.ok) {$a} else {$a}  
    }   
 }
