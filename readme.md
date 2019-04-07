@@ -1,4 +1,3 @@
-# ps.slack (Warning: Black Friday drafts)
 ## This module compliments the psbbix
 
 ##### Compatibility
@@ -15,14 +14,14 @@
 ### Limitations
 - Sometimes, working with few APIs and using different auth and tokens in the same powershell session may result weird results
 - Example: after login to Zabbix, you can't use PowershellGallery (find-module etc. doesn't work) in the same powershell session
-- Workaround: use different powershell session for different API sessions and use copy/paste: dir | clip; get-clipboard | out-string | Send-lsackMessage -channel "#BlackFriday" 
+- Workaround: use different powershell session for different API sessions and use copy/paste: dir | clip; get-clipboard | out-string | Send-slackMessage -channel "#BlackFriday" 
 - [ConEmu](<https://conemu.github.io/>) and/or [Console2](<https://sourceforge.net/projects/console/>) are your best friends 
 
 ### Example: Windows
 - If you're working with VWAT stack (VMware/Windows/Apache/Tomcat - say VeeWAT)
 - Running from PowerCLI (VMware) + ps.slack:
 ```powershell
-(get-vm | ? powerstate -match on | ? name -match "vmname|vmname" | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -match "10.20.10"}}).ipaddress | New-PSsession
+(get-vm | ? powerstate -match on | ? name -match "vmname|vmname" | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -match "10.20.10"}}).ipaddress | New-PSSession
 or 
 (get-vm | ? powerstate -match on | ? name -match "vmname|vmname" | Get-VMGuest).hostname | New-Pssession -usessl
 invoke-command -Session (get-pssession) {hostname; gc -tail 200 c:\var\logs\app\error.log} | sls "ERROR" | out-string |  Send-slackMessage -channel "#BlackFriday" 
@@ -30,7 +29,7 @@ invoke-command -Session (get-pssession) {hostname; gc -tail 200 c:\var\logs\app\
 ### Example: Linux
 - Running from PowerCLI (VMware) + SSH module + ps.slack:
 ```powershell
-(get-vm | ? powerstate -match on | ? name -match "vmname|vmname" | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -match "10.20.10"}}).ipaddress | New-SSHsession
+(get-vm | ? powerstate -match on | ? name -match "vmname|vmname" | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -match "10.20.10"}}).ipaddress | New-SSHSession
 Get-SshSession | Invoke-SshCommand -command {hostname; dstat -lvn 1 2} | out-string | Send-slackMessage -channel "#BlackFriday"
 ```
 

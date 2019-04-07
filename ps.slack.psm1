@@ -15,10 +15,10 @@ Function Get-slackHelp {
         Get list of aliases for the ps.slack module
     .Example
         gskh message
-        Get examples for all slackmMessage commands
+        Get examples for all slackMessage commands
     .Example
         gskh mess* -p zabbix -short
-        Get examples for lackmMessage look for string zabbix
+        Get examples for lackMessage look for string zabbix
     .Example
         gskh -zverb get
         Get examples of all get commands
@@ -47,29 +47,37 @@ Function Get-slackHelp {
 }
 
 function Remove-EmptyLines {
-    <#
-    .Synopsis
-        Remove emprty lines from file, string or variable
-    .Description
-        Remove emprty lines from file, string or variable
-    .Example
-        Remove-EmptyLines -in (gc c:\file.txt)
-    .Example
-        $var | Remove-EmptyLines
-    .Example
-        help -ex Remove-EmptyLines | out-string | Remove-EmptyLines 
-    #>
-
+	<#
+	.Synopsis
+		Remove empty lines from file, string or variable
+	.Description
+		Remove empty lines from file, string or variable
+	.Example
+		Remove-EmptyLines -in (gc c:\file.txt)
+	.Example
+		$var | Remove-EmptyLines
+	.Example
+		help -ex Remove-EmptyLines | Remove-EmptyLines 
+	.Example
+		gc c:\*.txt | rmel
+	.Example
+		Get-ClipBoard | rmel
+	.Example
+		dir | oss | rmel
+	#>
+	
 	[cmdletbinding()]
     [Alias("rmel")]
-    param ([parameter(mandatory=$false,position=0,ValueFromPipeline=$true)][array]$in)
+    param ([Parameter(Mandatory=$false,Position=0,ValueFromPipeline=$true)][array]$in)
 	
-    if (!$psboundparameters.count) {
-		help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines
-		return
+	process {
+		if (!$psboundparameters.count) {
+			help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines
+			return
+		}
+		
+		$in.split("`r`n") | ? {$_.trim() -ne ""}
 	}
-    
-	$in.split("`r`n") | ? {$_.trim() -ne ""}
 }
 
 function Set-slackAuthToken {
@@ -80,15 +88,25 @@ function Set-slackAuthToken {
         Set slack authentication token 
     .Example
         Set-slackAuthToken
-        Set  slack authentication token
+        Set slack authentication token
     #>
 
     [CmdletBinding()]
-    param([switch]$force)
+    param(
+        [switch]$force,
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true)][string]$global:slackToken,
+        [Parameter(Mandatory=$false,ValueFromPipeline=$true)][string]$global:slackTokenIdentity
+    )
    
-    if (!$global:slackToken) {$global:slackToken=read-host "Input the slack user authentication token here"; write-verbose "Slack user token: $global:slackToken"} 
-    elseif (!$force) {write-host "`nSlack user token already exists." -f green; write-host "Want to set new one, use -force`n" -f yellow; write-verbose "Slack user token: $global:slackToken"}
-    elseif ($global:slackToken -and $force) {$global:slackToken=read-host "Input the slack user authentication token here"; write-verbose "Slack user token: $global:slackToken"}
+    if (!$global:slackToken) {$global:slackToken=read-host "Input the slack user authentication token"; write-verbose "Slack user token: $global:slackToken"} 
+    else {write-host "`nSlack user token already exists." -f green; write-host "Want to set new one, use -force`n" -f yellow; write-verbose "Slack user token: $global:slackToken"}
+    if (!$global:slackTokenIdentity) {$global:slackTokenIdentity=read-host "Input the slack identity scope authentication token"; write-verbose "Slack user token: $global:slackTokenIdentity"} 
+    else {write-host "`nSlack identity scope token already exists." -f green; write-host "Want to set new one, use -force`n" -f yellow; write-verbose "Slack user token: $global:slackTokenIdentity"}
+    # elseif (!$force) {write-host "`nSlack user token already exists." -f green; write-host "Want to set new one, use -force`n" -f yellow; write-verbose "Slack user token: $global:slackToken"}
+    if ($force) {
+        if ($global:slackToken) {$global:slackToken=read-host "Input the slack user authentication token"; write-verbose "Slack user token: $global:slackToken"}
+        if ($global:slackTokenIdentity) {$global:slackTokenIdentity=read-host "Input the slack identity scope authentication token"; write-verbose "Slack user token: $global:slackTokenIdentity"}
+    }
 }
 
 function Test-slackAuthToken {
@@ -105,7 +123,8 @@ function Test-slackAuthToken {
     [CmdletBinding()]
     [Alias("tskauth","shskauth")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][ValidateSet('user','identity','bot')][string]$scope="user",
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="auth.test"
     )
@@ -114,6 +133,12 @@ function Test-slackAuthToken {
 
 	$boundparams=$PSBoundParameters | out-string
 	write-verbose "($boundparams)"
+
+    switch -wildcard ($scope) {
+        user {$token=$global:slackToken}
+        bot {$token=$global:slackToken}
+        identity {$token=$global:slackTokenIdentity}
+    }
 
     $Body = @{
         token = $token
@@ -140,7 +165,13 @@ function Show-slackAuthToken {
     [Alias("testskconn")]
     Param ()
 
-    if (!$global:slackToken) {write-host "`nSlack authentication token is not set!`n" -f red; Set-slackAuthToken; write-host "`nRerun command." -f green; return} else {$global:slackToken}
+    if ($global:slackToken -or $global:slackTokenIdentity) {
+        "token user scopes: $global:slackToken"
+        "token identity scopes: $global:slackTokenIdentity"
+    } 
+    else {
+        write-host "`nSlack authentication tokens are not set!`n" -f red; Set-slackAuthToken
+    }
 }
 
 function Revoke-slackAuthToken {
@@ -325,7 +356,7 @@ function Send-slackMessage {
     .Example
         (get-vm | ? powerstate -match on | ? name -match centos | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -like "10.10.20.*"}}).ipaddress | new-sshsession
         Get-SshSession | Invoke-SshCommand -command {hostname; df -h} | oss | Send-slackMessage -channel "#test"
-        1. Connect to multiple Linux boxes, using VMware PverCLI and SSH module
+        1. Connect to multiple Linux boxes, using VMware PowerCLI and SSH module
         2. Get disk information from all machines and post to slack
         3. Every machine info will be posted as separate message
     .Example
@@ -336,20 +367,21 @@ function Send-slackMessage {
         gskusrs | ? name -match name | startskim | sskmsg -text "text"
         Send private message
     .Example
-        Get-ZabbixAlert @zabSessionParams | ? sendto -match yubu | select @{n="Time(UTC+1)";e={(convertfrom-epoch $_.clock).addhours(1)}},alertid,subject | Out-String | sskmsg -channel "#BlackFriday"
-        Get Zabbix allerts for last 5 hours (default) and post to slack
+        Get-ZabbixAlert | ? sendto -match yubu | select @{n="Time(UTC+1)";e={(convertfrom-epoch $_.clock).addhours(1)}},alertid,subject | Out-String | sskmsg -channel "#BlackFriday"
+        Get Zabbix alerts for last 5 hours (default) and post to slack
     #>
 
     [CmdletBinding()]
     [Alias("sskmsg")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)][string]$text,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$username,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emoji,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$parse="full",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$attachments,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="chat.postMessage"
     )
@@ -388,44 +420,42 @@ function Send-slackMessageAsBot {
     .Synopsis
         Post messages as bot
     .Description
-        Post messages as bot. All users in the chanel will get notification 
+        Post messages as a bot. All users in the chanel will get notification 
     .Example
-        Send-slackMessage -text "Post text to slack" -channel "#test" -username alertBot -emoji ":thumbsup:"
-        Post slack message as bot
+        Send-slackMessageAsBot -text "Post text to slack" -channel "#test" -username alertBot -emoji ":thumbsup:"
+        Post slack message as a bot, named alertBot
     .Example
-        sskmsg -channel "#BlackFriday" -text (gc c:\errors.log | out-string) -username alertBot -emoji ":exclamation:"
-        Post message 
+        sskmsgab -channel "#BlackFriday" -text (gc c:\errors.log | out-string) -username alertBot -emoji ":exclamation:"
+        Post message as a bot
     .Example
-        Get-Clipboard | out-string | Send-slackMessage -channel "#test"
-        Paste and send the message
+        Get-Clipboard | out-string | Send-slackMessageAsBot -channel "#test" -username systemAlertBot
+        Paste and send the message as a bot, named systemAlertBot
     .Example
         (get-vm | ? powerstate -match on | ? name -match centos | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -like "10.10.20.*"}}).ipaddress | new-sshsession
-        Get-SshSession | Invoke-SshCommand -command {hostname; df -h} | oss | Send-slackMessage -channel "#alerts" alertBot -emoji ":exclamation:"
-        1. Connect to multiple Linux boxes, using VMware PverCLI and SSH module
+        Get-SshSession | Invoke-SshCommand -command {hostname; df -h} | oss | Send-slackMessageAsBot -channel "#alerts" alertBot -emoji ":exclamation:"
+        1. Connect to multiple Linux boxes, using VMware PowerCLI and SSH module
         2. Get disk information from all machines and post to slack
         3. Every machine info will be posted as separate message
     .Example
         (get-vm | ? powerstate -match on | ? name -match centos | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -like "10.10.20.*"}}).ipaddress | new-sshsession
-        Get-SshSession | Invoke-SshCommand -command {hostname; dstat -lvn 1 2} | out-string | Send-slackMessage -channel "#BlackFriday" -user alertBot -emoji ":exclamation:"
+        Get-SshSession | Invoke-SshCommand -command {hostname; dstat -lvn 1 2} | out-string | Send-slackMessageAsBot -channel "#BlackFriday" -user alertBot -emoji ":exclamation:"
         Same as previous example, but all text will be posted as single message
     .Example
-        Get-ZabbixAlert @zabSessionParams | ? sendto -match yubu | select @{n="Time(UTC+1)";e={(convertfrom-epoch $_.clock).addhours(1)}},alertid,subject | Out-String | sskmsg -channel "#BlackFriday" alertBot -emoji ":boom:"
-        Get Zabbix allerts for last 5 hours (default) and post to slack
-    .Example
-        gskusrs | ? name -match name | startskim | sskmsg -text "text"
-        Send private message
+        Get-ZabbixAlert | ? sendto -match user | select @{n="Time(UTC+1)";e={(convertfrom-epoch $_.clock).addhours(1)}},alertid,subject | Out-String | sskmsgab -channel "#BlackFriday" alertBot -emoji ":boom:"
+        Get Zabbix alerts for last 5 hours (default) and post to slack
     #>
 
     [CmdletBinding()]
-    [Alias("sskmsg")]
+    [Alias("sskmsgab")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)][string]$text,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$username,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emoji,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$parse="full",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$attachments,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="chat.postMessage"
     )
@@ -467,7 +497,7 @@ function Set-slackMessage {
         Edit slack messages
     .Example
         Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches | Set-slackMessage -text "New message here" -channel {$_.channel.id}
-        Will replace existing message text with new one, in every occurence
+        Will replace existing message text with new one, in every occurrence
     .Example
         Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches  | ? channel -match test | Set-slackMessage -text "EDIT MESSAGE" -channel {$_.channel.id}
         Will replace messages by query and in channel by match
@@ -479,13 +509,14 @@ function Set-slackMessage {
     [CmdletBinding()]
     [Alias("Edit-slackMessage","editskmsg")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$parse="full",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$link_names=1,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$text,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$as_user="true",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="chat.update"
     )
@@ -534,9 +565,10 @@ function Remove-slackMessage {
     [CmdletBinding()]
     [Alias("Delete-slackMessage","delskmsg","rmskmsg")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="chat.delete"
     )
@@ -637,10 +669,11 @@ function Search-slack {
     [CmdletBinding()]
     [Alias("ssk")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$sort_dir,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$query,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
+        
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="search.all"
     )
@@ -678,6 +711,7 @@ function Get-slackPins {
         Get pinned items for channel
     .Example
         Get-slackChannels | ? name -match "" | Get-slackPins
+        Get pinned messages for channels
     .Example
         gskch | ? name -match "" | gskpins | select @{n="channel";e={(gskch | ? id -Match $_.channel).name}} -ExpandProperty message
         Get pinned messages for channels
@@ -686,8 +720,9 @@ function Get-slackPins {
     [CmdletBinding()]
     [Alias("gskpins")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ID,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="pins.list"
     )
@@ -720,7 +755,7 @@ function Set-slackPins {
     .Description
         Pin item to channel
     .Example
-        GSearch-slack -query "Some text" | select -ExpandProperty messages | select -ExpandProperty matches | select -first 1 | Set-slackPins -channel {$_.channel.id}
+        Search-slack -query "Some text" | select -ExpandProperty messages | select -ExpandProperty matches | select -first 1 | Set-slackPins -channel {$_.channel.id}
         Pin message to channel
     .Example
         gskch | ? name -match "" | gskpins | select @{n="channel";e={(gskch | ? id -Match $_.channel).name}} -ExpandProperty message
@@ -730,10 +765,11 @@ function Set-slackPins {
     [CmdletBinding()]
     [Alias("sskpins")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="pins.add"
     )
@@ -775,10 +811,11 @@ function Remove-slackPins {
     [CmdletBinding()]
     [Alias("Delete-slackPins")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts,
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="pins.remove"
     )
@@ -875,8 +912,8 @@ function Get-slackChannelsInfo {
         Get-slackChannels | ? name -match "" | Get-slackChannelsInfo | select id,name -ExpandProperty latest -ea silent
         Get latest post in channel
     .Example
-        Get-slackChannels | ? name -match "cnahhelName" | Get-slackChannelsInfo | select -ExpandProperty members | select @{n="Members";e={(gskusrs | ? id -match $_)}} | select -ExpandProperty members | select id,team_id,name,real_name,presence,is_admin,is_owner | sort name | ft -a
-        Get channel memnbers
+        Get-slackChannels | ? name -match "channelName" | Get-slackChannelsInfo | select -ExpandProperty members | select @{n="Members";e={(gskusrs | ? id -match $_)}} | select -ExpandProperty members | select id,team_id,name,real_name,presence,is_admin,is_owner | sort name | ft -a
+        Get channel members
     .Example
         Get-slackChannels | ? name -match "" | Get-slackChannelsInfo | select id,name,@{n='creator';e={(gskusrs | ? id -match $_.creator).name}},@{n="created";e={convertfrom-epoch $_.created}} | sort creator | ft -a
         Get channels creation info
@@ -885,8 +922,8 @@ function Get-slackChannelsInfo {
     [CmdletBinding()]
     [Alias("gskchi")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.info"
     )
@@ -915,22 +952,22 @@ function Get-slackChannelsInfo {
 function New-slackChannels {
     <# 
     .Synopsis
-        Join slack channel. If the channel does not exist, it is created
+        Join slack channel. If the channel does not exist, it will be created
     .Description
-        Join slack channel. If the channel does not exist, it is created
+        Join slack channel. If the channel does not exist, it will be created
     .Example
         New-slackChannels -name New-Channel
-        Join slack channel. If the channel does not exist, it is created
+        Join slack channel. If the channel does not exist, it will be created
     .Example
         joinskch -name channelName
-        Join slack channel. If the channel does not exist, it is created
+        Join slack channel. If the channel does not exist, it will be created
     #>
     
     [CmdletBinding()]
     [Alias("Join-slackChannel","joinskch")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.join"
     )
@@ -959,20 +996,20 @@ function New-slackChannels {
 function Rename-slackChannels {
     <# 
     .Synopsis
-        Rename slack channel. If the channel does not exist, it is created
+        Rename slack channel
     .Description
-        Rename slack channel. If the channel does not exist, it is created
+        Rename slack channel
     .Example
-        Get-slackChannels | ? name -match "currentChannelName" | rename-slackChannels -name "newChannelName""
+        Get-slackChannels | ? name -match "currentChannelName" | Rename-slackChannels -name "newChannelName"
         Rename slack channel
     #>
 
     [CmdletBinding()]
     [Alias("renskch")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.rename"
     )
@@ -1013,9 +1050,9 @@ function Set-slackChannelsArchive {
     [CmdletBinding()]
     [Alias("Archive-slackChannels","arcskch")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.archive"
     )
@@ -1049,16 +1086,16 @@ function Set-slackChannelsUnArchive {
     .Description
         Unarchive slack channels
     .Example
-        Get-slackChannels | ? name -match "ChannelName" | Set-slackChannelsUnArchive 
+        Get-slackChannels -exclude_archived 0 |  ? name -match "channelName" | UnArchive-slackChannels
         Unarchive slack channels
     #>
 
     [CmdletBinding()]
     [Alias("UnArchive-slackChannels","unarcskch")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.unarchive"
     )
@@ -1100,9 +1137,9 @@ function Set-slackChannelsInvite {
     [CmdletBinding()]
     [Alias("InviteTo-slackChannel","skchinvite")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$userid,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.invite"
     )
@@ -1158,7 +1195,6 @@ function Get-slackChannelsHistory {
     [CmdletBinding()]
     [Alias("gskchhist")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         # [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$latest,
@@ -1166,6 +1202,7 @@ function Get-slackChannelsHistory {
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$inclusive=1,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unreads,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="channels.history"
     )
@@ -1220,8 +1257,8 @@ function Get-slackUsers {
     [CmdletBinding()]
     [Alias("gskusrs")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$presence="1",
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="users.list"
     )
@@ -1235,7 +1272,7 @@ function Get-slackUsers {
 
         $Body = @{
             token = $token
-            presence = "1"
+            presence = $presence
         }
         
         write-verbose ($body | ConvertTo-Json)
@@ -1261,8 +1298,8 @@ function Get-slackTeamDND {
     [CmdletBinding()]
     [Alias("gskteamdnd")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="dnd.teamInfo"
     )
@@ -1305,8 +1342,8 @@ function Get-slackUserDND {
     [CmdletBinding()]
     [Alias("gskusrdnd")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipeline,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="dnd.info"
     )
@@ -1394,12 +1431,15 @@ function Get-slackUsersIdentity {
     [CmdletBinding()]
     [Alias("gskusrid")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackTokenIdentity,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="users.identity"
     )
     
-   begin {if (!(Test-slackAuthToken)) {break}}
+   begin {
+       if (!(Test-slackAuthToken)) {break}
+       elseif (!$global:slackTokenIdentity) {write-host "`nERROR: slackTokenIdentity not exist. You need token with identity.basic scope. Look here for details: https://api.slack.com/scopes`n" -f red; break} 
+    }
 
    process {
         
@@ -1412,8 +1452,9 @@ function Get-slackUsersIdentity {
         
         write-verbose ($body | ConvertTo-Json)
         
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
-        if ($a.ok) {$a} else {$a}
+        # $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Get -ContentType "application/x-www-form-urlencoded"
+        if ($a.ok) {$a.user} else {$a}
    }
 }
 
@@ -1424,31 +1465,43 @@ function Get-slackFiles {
     .Description
         Get file list
     .Example
+        Get-slackFiles -types pdfs | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},filetype,name | ft -a
+        Get .pdf files (file creation time in UTC+1)
+    .Example
         Get-slackFiles | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},name,title,filetype | ft -a
-        Get files, time in UTC+1
+        Get files (file creation time in UTC+1)
+    .Example
+        Get-slackFiles -channelid (Get-slackChannels | ? name -match channelName).id -count 3 -page 2 | select id,name,paging
+        Get files (file creation time in UTC+1), from channel by channel name. Pull every 3 files and display page 2 (files from 4 to 6) 
     .Example
         Get-slackFiles | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},@{n="createdBy";e={(gskusrs | ? id -eq $_.user).name}},@{n="inChanel";e={(gskch | ? id -eq $_.channels).name}},title,name,filetype,size | ft -a
-        Get files, time in UTC+1
+        Get files (file creation time in UTC+1)
     .Example
-        gskfiles  | ? name -match errors | select preview  | fl *
-        Preview content of files
+        gskfiles -channelid (Get-slackChannels | ? name -match channelName).id -ts_from (convertTo-epoch ((get-date).AddDays(-50))) -Verbose | select id,name,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},paging
+        Get files from 50 days ago from the certain channel (file creation time in UTC+1)
+    .Example
+        gskfiles | ? name -match errors | select preview  | fl *
+        Preview content of the files
     .Example
         gskfiles | ? filetype -match "text" | ? name -match errors.log | select preview | fl * 
-        Preview content of files
+        Preview content of the files
     #>
 
     [CmdletBinding()]
     [Alias("gskfiles")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$user,
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$queryparams="",
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$userid,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channelid,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$page,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts_from,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts_to,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count,
         # all - All files; spaces - Posts; snippets - Snippets; images - Image files; gdocs - Google docs; zips - Zip files; pdfs - PDF files
         # https://api.slack.com/types/file#file_types
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$types,
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][ValidateSet('all','spaces','snippets','images','gdocs','zips','pdfs')][string]$types,
+        
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.list"
     )
@@ -1457,25 +1510,29 @@ function Get-slackFiles {
 
    process {
     
-    #    if (!$psboundparameters.count) {Get-Help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines; return}
         $boundparams=$PSBoundParameters | out-string
         write-verbose "($boundparams)"
 
         $Body = @{
             token = $token
-            user = $user
-            channel = $id
-            ts_from = $ts_from
-            ts_to = $ts_to
-            count = $count
-            types = $types
-            highlight = "1"
         }
         
-        write-verbose ($body | ConvertTo-Json)
-        
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
-        if ($a.ok) {$a.files} else {$a}
+        $queryparams="?token=$token"
+        if ($userid) {$queryparams+="`&user=$userid"}
+        if ($channelid) {$queryparams+="`&channel=$channelid"}
+        if ($ts_from) {$queryparams+="`&ts_from=$ts_from"}
+        if ($ts_to) {$queryparams+="`&ts_to=$ts_to"}
+        if ($count) {$queryparams+="`&count=$count"}
+        if ($types) {$queryparams+="`&types=$types"}
+        if ($page) {$queryparams+="`&page=$page"}
+        $queryparams+='&pretty=1'
+
+        write-verbose "Body: $($body | ConvertTo-Json)"
+        write-verbose "QueryParams: $queryparams"
+        write-verbose "URL: $URL/$method$queryparams -Method Get"
+
+        $a = Invoke-RestMethod "$URL/$method$queryparams" -Body $Body -Method Get -ContentType "application/x-www-form-urlencoded"
+        if ($a.ok) {$a | select paging -ExpandProperty files } else {$a}
    }   
 }
 
@@ -1486,23 +1543,24 @@ function Get-slackFilesInfo {
     .Description
         Get file list
     .Example
-        Get-slackFiles | ? name -match "txt" | select -first 3 | Get-slackFilesInfo | select content,comments -ExpandProperty file | select id,created,name,title,filetype,size,lines,content,comments
-        Get files detailed info.
+        Get-slackFiles | ? name -match "txt" | select -first 3 | Get-slackFilesInfo | select id,created,name,title,filetype,size,lines,content,comments | ft -a
+        Get files detailed info
     .Example
-        Get-slackFiles | ? name -match "txt" | select -first 3 | Get-slackFilesInfo | select content,comments -ExpandProperty file | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},name,title,filetype,size,lines,content,comments
+        Get-slackFiles | ? filetype -match "pdf|txt" | select -first 3 | Get-slackFilesInfo | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},name,title,filetype,size,lines,content,comments
         Get files detailed info, time in UTC+1
     .Example
         Get-slackFiles | Get-slackFilesInfo | select id,@{n="created";e={(convertFrom-epoch $_.created).addhours(+1)}},name,content
-        Get files detaied info, time in UTC+1
+        Get files detailed info, time in UTC+1
     #>
 
     [CmdletBinding()]
     [Alias("gskfilesinfo")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$page,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.info"
     )
@@ -1525,11 +1583,10 @@ function Get-slackFilesInfo {
         
         write-verbose ($body | ConvertTo-Json)
         
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
-        if ($a.ok) {$a} else {$a}
+        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Get -ContentType "application/x-www-form-urlencoded"
+        if ($a.ok) {$a.file} else {$a}
    }   
 }
-
 
 function Send-slackFiles {
     <# 
@@ -1556,13 +1613,13 @@ function Send-slackFiles {
     Param (
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
-        # [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filePath,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filePath,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$content,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filename,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$title,
         # all - All files; spaces - Posts; snippets - Snippets; images - Image files; gdocs - Google docs; zips - Zip files; pdfs - PDF files
         # https://api.slack.com/types/file#file_types
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filetype,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][ValidateSet('all','spaces','snippets','images','gdocs','zips','pdfs')][string]$filetype,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$initial_comment,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channels,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
@@ -1578,20 +1635,34 @@ function Send-slackFiles {
         $boundparams=$PSBoundParameters | out-string
         write-verbose "($boundparams)"
 
-        $Body = @{
-            token = $token
-            content = $content
-            file = $file
-            filename = $filename
-            filetype = $filetype
-            title = $title
-            initial_comment = $initial_comment
-            channels = $channels
+        if (!$filePath) {
+            $Body = @{
+                token = $token
+                content = $content
+                file = $file
+                filename = $filename
+                filetype = $filetype
+                title = $title
+                initial_comment = $initial_comment
+                channels = $channels
+            }
         }
-            
-        write-verbose ($body | ConvertTo-Json)
+        elseif ($filePath) {
+            $queryparams="?token=$token"
+            if ($file) {$queryparams+="`&user=$file"}
+            if ($channels) {$queryparams+="`&channels=$channels"}
+            if ($filename) {$queryparams+="`&filename=$filename"}
+            if ($filetype) {$queryparams+="`&filetype=$filetype"}
+            if ($initial_comment) {$queryparams+="`&initial_comment=$initial_comment"}
+            if ($title) {$queryparams+="`&title=$title"}
+            # if ($page) {$queryparams+="`&page=$page"}
+            $queryparams+='&pretty=1'
+        }
         
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        if ($body) {write-verbose ($body | ConvertTo-Json)}
+
+        if (!$filePath) {$a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post -ContentType "application/x-www-form-urlencoded"}
+        elseif ($filePath) {$a = Invoke-RestMethod "$URL/$method$queryparams" -Method Post -ContentType "multipart/form-data" -InFile $filePath}
         
         if ($a.ok) {$a.file} else {$a}
    }   
@@ -1610,23 +1681,27 @@ function Send-slackFilesCurl {
         Send-slackFilesCurl -channels "#test" -file C:\graph.png -filename graph.png -filetype auto -title Zabbix -verbose
         Send file, using curl.exe  (https://curl.haxx.se/download.html)
     .Example
-        Get-ZabbixHost @zabSessionParams | ? name -match "server" | Get-ZabbixGraph @zabSessionParams | ? name -match 'CPU utilzation' | Save-ZabbixGraph -verbose -show
+        dir C:\books\*.pdf | Send-slackFilesCurl -channels "#books" -filetype pdfs
+        Upload .pdf files to slack
+    .Example
+        Get-ZabbixHost | ? name -match "server" | Get-ZabbixGraph | ? name -match 'CPU utilization' | Save-ZabbixGraph -verbose -show
         Send-slackFilesCurl -channels "#BlackFriday" -file C:\graph-1111.png
-        Save grpah from Zabbix and post it to the slack  
+        Save graph from Zabbix and post it to the slack  
     #>
 
     [CmdletBinding()]
     [Alias("sskfileCurl","upskfileCurl","Upload-slackFilesCurl")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipeline,ValueFromPipelineByPropertyName=$true)][string]$file,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filename,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$title,
         # all - All files; spaces - Posts; snippets - Snippets; images - Image files; gdocs - Google docs; zips - Zip files; pdfs - PDF files
         # https://api.slack.com/types/file#file_types
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$filetype,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string][ValidateSet('all','spaces','snippets','images','gdocs','zips','pdfs')]$filetype,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$initial_comment,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channels,
+        
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.upload"
     )
@@ -1647,6 +1722,83 @@ function Send-slackFilesCurl {
    }   
 }
 
+function Save-slackFiles {
+    <# 
+   .Synopsis
+       Download files
+   .Description
+       Download files
+   .Example
+       Save-slackFiles -url_private_download url_private_download -name c:\temp\file.pdf
+       Download file
+   .Example
+       Get-slackFiles -types pdfs | ? name -match name | Save-slackFiles
+       Download files to the current dir
+   #>
+   [CmdletBinding()]
+   [Alias("saveskfiles","downskfiles","Download-slackFiles")]
+   Param (
+       [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$url_private_download,
+       [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$public_url_shared,
+       [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$is_public,
+       [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+       [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken
+   )
+
+   begin {if (!(Test-slackAuthToken)) {break}}
+
+   process {
+       
+       if (!$psboundparameters.count) {Get-Help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines; return}
+       if (!$name) {Write-Host "`nERROR: Missing parameters. Provide -name (filename/path to save the file)`n" -f red; return} 
+       if (!((gcm curl).name).contains("exe")) {write-host "`nCan't run the command. Need curl.exe in the path. Download from here: https://curl.haxx.se/download.html`n" -f red ; return}
+       
+       $boundparams=$PSBoundParameters | out-string
+       write-verbose "($boundparams)"
+       
+       Invoke-WebRequest -Headers @{"Authorization"="Bearer $token"} -URI $url_private_download -OutFile $name
+  }
+}
+
+function Save-slackFilesCurl {
+     <# 
+    .Synopsis
+        Download files with curl.exe
+    .Description
+        Download files with curl.exe
+    .Example
+        Get-slackFilesCurl -url_private_download url_private_download
+        Download file to current dir, using curl.exe (https://curl.haxx.se/download.html)
+    .Example
+        gskfiles -filetype pdfs | ? name -match fileName | Get-slackFilesCurl
+        Download files to current dir, using curl.exe (https://curl.haxx.se/download.html)
+    #>
+    [CmdletBinding()]
+    [Alias("saveskfilesCurl","downskfilesCurl","Download-slackFilesCurl")]
+    Param (
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$url_private_download,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$public_url_shared,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$is_public,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken
+        # [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
+        # [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.upload"
+    )
+
+    begin {if (!(Test-slackAuthToken)) {break}}
+
+    process {
+        
+        if (!$psboundparameters.count) {Get-Help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines; return}
+
+        if (!((gcm curl).name).contains("exe")) {write-host "`nCan't run the command. Need curl.exe in the path. Download from here: https://curl.haxx.se/download.html`n" -f red ; return}
+        
+        $boundparams=$PSBoundParameters | out-string
+        write-verbose "($boundparams)"
+        
+        curl.exe -H "Authorization: Bearer $token" -L -C - -J -O "$url_private_download"
+   }
+}
+
 function Set-slackFilesPublic {
     <# 
     .Synopsis
@@ -1664,8 +1816,8 @@ function Set-slackFilesPublic {
     [CmdletBinding()]
     [Alias("sskfilepub")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.sharedPublicURL"
     )
@@ -1705,8 +1857,8 @@ function Set-slackFilesPrivate {
     [CmdletBinding()]
     [Alias("sskfileprv")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.revokePublicURL"
     )
@@ -1745,13 +1897,17 @@ function Remove-slackFiles {
     .Example
         gskfiles | ? name -match "name" | delskfiles
         Delete files
+    .Example
+        gskfiles -filetype pdfs | ? name -match name | Remove-slackFiles
+        Delete files
     #>
     
     [CmdletBinding(SupportsShouldProcess,ConfirmImpact='High')]
     [Alias("Delete-slackFiles","delskfiles","rmskfiles")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="files.delete"
     )
@@ -1773,7 +1929,7 @@ function Remove-slackFiles {
         write-verbose ($body | ConvertTo-Json)
 
         if ([bool]$WhatIfPreference.IsPresent) {}
-        if ($PSCmdlet.ShouldProcess($file,"Remove file.")) {     
+        if ($PSCmdlet.ShouldProcess("$file`: $name","Remove file(s)")) {     
             $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
         }
         
@@ -1798,11 +1954,12 @@ function Get-slackReactionsFile {
     [CmdletBinding()]
     [Alias("gskimhist")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
         # [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$timestamp,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$full="true",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reactions.get"
     )
@@ -1851,11 +2008,12 @@ function Get-slackReactionsUser {
     [CmdletBinding()]
     [Alias("gskimhist")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$page,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count=1000,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$full="true",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reactions.list"
     )
@@ -1890,7 +2048,7 @@ function Set-slackReactionsFile {
     .Synopsis
         Set reactions for the files
     .Description
-        Set reactions for the sfiles
+        Set reactions for the files
     .Example
         Get-slackFiles | ? title -match cluster1 | Set-slackReactionsFile -emojiname "boom"
         Set reactions for the files
@@ -1898,10 +2056,11 @@ function Set-slackReactionsFile {
 
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emojiName,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$full="true",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reactions.add"
     )
@@ -1941,10 +2100,11 @@ function Remove-slackReactionsFile {
 
     [CmdletBinding()]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emojiName,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$file,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$full="true",
+
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reactions.remove"
     )
@@ -2000,7 +2160,7 @@ function Get-slackBots {
         }
             
         write-verbose ($body | ConvertTo-Json)
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Get -ContentType "application/x-www-form-urlencoded"
         $a
     }
 }
@@ -2037,7 +2197,7 @@ function Get-slackGroups {
             
         write-verbose ($body | ConvertTo-Json)
             
-        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Get -ContentType "application/x-www-form-urlencoded"
         if ($a.ok) {$a.groups} else {$a}  
    }   
 }
@@ -2057,6 +2217,7 @@ function New-slackGroups {
     [Alias("nskgrp")]
     Param (
         [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$validate="$true",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="groups.create"
@@ -2074,6 +2235,7 @@ function New-slackGroups {
         $Body = @{
             token = $token
             name = $name
+            validate = $validate
         }
             
         write-verbose ($body | ConvertTo-Json)
@@ -2233,24 +2395,69 @@ function Get-slackGroupsHistory {
    }   
 }
 
-function Close-slackGroups {
-    <# 
+function Get-slackGroupsReplies {
+    <#
     .Synopsis
-        Close/Disconnect private channel
+        Rename private channel
     .Description
-        Close/Disconnect private channel
+        Rename private channel
     .Example
-        get-slackGroups | ? name -match group | Remove-slackGroups
-        Close private channel
+        Get-slackGroups | ? name -match group | Get-slackGroupsReplies -name newName
+        Rename private channel
     #>
 
     [CmdletBinding()]
-    [Alias("Disconnect-slackGroup","clskgrp")]
+    [Alias("gskgrprepl")]
+    Param (
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$name,
+        [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$thread_ts,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="groups.replies"
+    )
+    
+    begin {if (!(Test-slackAuthToken)) {break}}
+
+    process {
+
+        if (!$psboundparameters.count) {Get-Help -ex $PSCmdlet.MyInvocation.MyCommand.Name | out-string | Remove-EmptyLines; return}     
+
+        $boundparams=$PSBoundParameters | out-string
+        write-verbose "($boundparams)"
+
+        $Body = @{
+            token = $token
+            channel = $id
+            name = $name
+            thread_ts = $thread_ts
+        }
+            
+        write-verbose ($body | ConvertTo-Json)
+            
+        $a = Invoke-RestMethod "$URL/$method" -Body $Body -Method Post
+        if ($a.ok) {$a.channel} else {$a}  
+   }   
+}
+
+function Set-slackGroupsArchive {
+    <# 
+    .Synopsis
+        Archive/Disconnect private channel
+    .Description
+        Archive/Disconnect private channel
+    .Example
+        get-slackGroups | ? name -match group | Remove-slackGroups
+        Archive private channel
+    #>
+
+    [CmdletBinding()]
+    [Alias("Archive-slackGroups","clskgrps")]
     Param (
         [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="groups.close"
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="groups.archive"
     )
     
     begin {if (!(Test-slackAuthToken)) {break}}
@@ -2277,11 +2484,11 @@ function Close-slackGroups {
 function Open-slackGroups {
     <# 
     .Synopsis
-        Close/Disconnect private channel
+        Open private channel
     .Description
-        Close/Disconnect private channel
+        Open private channel
     .Example
-        get-slackGroups | ? name -match group | Remove-slackGroups
+        get-slackGroups | ? name -match group | Open-slackGroups
         Close private channel
     #>
 
@@ -2444,6 +2651,8 @@ function Rename-slackGroups {
    }   
 }
 
+
+
 function Disconnect-slackGroups {
     <# 
     .Synopsis
@@ -2501,7 +2710,7 @@ function Remove-slackGroupsUser {
     Param (
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$channel,
-        [Alis("id")][Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$user,
+        [Alias("id")][Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$user,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="groups.kick"
     )
@@ -2585,7 +2794,7 @@ function Set-slackGroupsUnArchive {
     #>
 
     [CmdletBinding()]
-    [Alias("skgrpUnArch")]
+    [Alias("skgrpUnArch","UnArchive-slackGroups")]
     Param (
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$true)][string]$id,
@@ -2758,20 +2967,20 @@ function Get-slackIMHistory {
         Get-slackIM | select id,@{n="user";e={(gskusrs | ? id -eq $_.user).name}} | ? user -match user | Get-slackIMHistory | select type,@{n="user";e={(gskusrs | ? id -eq $_.user).name}},bot_id,@{n='time';e={(convertfrom-epoch ($_.ts).split(".")[0]).addhours(1)}},text | ft -a
         Get direct messages for the user, time in UTC+1
     .Example
-        Get-slackIM | select id,@{n="user";e={(gskusrs | ? id -eq $_.user).name}} | Get-slackIMHistory | select type,@{n="user";e={(gskusrs | ? id -eq $_.user).name}},bot_id,@{n='time';e={(convertfrom-epoch ($_.ts).split(".")[0]).addhours(1)}},text | ? text -match "strin1|string2"    
+        Get-slackIM | select id,@{n="user";e={(gskusrs | ? id -eq $_.user).name}} | Get-slackIMHistory | select type,@{n="user";e={(gskusrs | ? id -eq $_.user).name}},bot_id,@{n='time';e={(convertfrom-epoch ($_.ts).split(".")[0]).addhours(1)}},text | ? text -match "string1|string2"    
         Get direct messages for the user, time in UTC+1
         #>
 
     [CmdletBinding()]
     [Alias("gskimhist")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$latest,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$oldest,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$inclusive=1,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unreads=1,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="im.history"
     )
@@ -2810,7 +3019,7 @@ Function Add-slackReminders {
         Add reminders
     .Example
         Add-slackReminders -text "Eat banana" -time (convertto-epoch ((get-date).AddMinutes(25)).ToUniversalTime())
-        Create reminedr, time is UTC
+        Create reminder, time is UTC
     .Example
         Add-slackReminders -text "Eat banana" -time ((get-date -date "10/15/2016 15:48").ToUniversalTime() | convertTo-epoch)
         Add reminder, time is UTC
@@ -2822,10 +3031,10 @@ Function Add-slackReminders {
     [CmdletBinding()]
     [Alias("addskreminders")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$user,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$text,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$time,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reminders.add"
     )
@@ -2915,8 +3124,8 @@ Function Get-slackRemindersInfo {
     [CmdletBinding()]
     [Alias("Delete-slackReminders","rmskreminders")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$reminder,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reminders.info"
     )
@@ -2953,14 +3162,14 @@ Function Remove-slackReminders {
         Delete all reminders
     .Example
         Get-slackReminders | ? text -match banana | select -first 1 | Remove-slackReminders
-        Delete rreminders
+        Delete reminders
     #>
 
     [CmdletBinding()]
     [Alias("Delete-slackReminders","rmskreminders")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$reminder,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reminders.delete"
     )
@@ -3003,8 +3212,8 @@ Function Complete-slackReminders {
     [CmdletBinding()]
     [Alias("Delete-slackReminders","rmskreminders")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$reminder,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$method="reminders.complete"
     )
@@ -3168,7 +3377,7 @@ Function Get-slackTeamIntegrationLogs {
         Get the integration logs for the current team
     .Example
         Get-slackUsers | ? name -match user | Get-slackTeamIntegrationLogs
-        Filter logs generated by this user’s actions
+        Filter logs generated by this user's actions
     #>
 
     [CmdletBinding()]
