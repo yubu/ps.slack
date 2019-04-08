@@ -348,6 +348,9 @@ function Send-slackMessage {
         sskmsg -channel "#BlackFriday" -text (gc c:\errors.log | out-string)
         Post message 
     .Example
+        Send-slackMessage -text "Alert!" -channel "#test" -as_user $false -emoji ":yum:" -username myBot
+        Send message as a bot with custom emoji
+    .Example
         Get-Clipboard | out-string | Send-slackMessage -channel "#test"
         Paste and send the message
     .Example
@@ -376,10 +379,16 @@ function Send-slackMessage {
     Param (
         [Alias("id")][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$channel,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true,ValueFromPipeline=$true)][string]$text,
+        # Set your bot's user name. Must be used in conjunction with as_user set to false, otherwise ignored. 
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$username,
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emoji,
+        # Emoji to use as the icon for this message. Overrides icon_url. Must be used in conjunction with as_user set to false, otherwise ignored
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$emoji=":exclamation:",
+        # Pass true to post the message as the authed user, instead of as a bot
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$as_user=$true,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$parse="full",
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$attachments,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unfurl_links=$true,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unfurl_media=$true,
 
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$URL="https://slack.com/api",
@@ -401,10 +410,10 @@ function Send-slackMessage {
             username = $username
             text = $text
             icon_emoji = $emoji
-            unfurl_links = "true"
-            unfurl_media = "true"
-            as_user = "true"
-            parse = "true"
+            unfurl_links = $unfurl_links
+            unfurl_media = $unfurl_media
+            as_user = $as_user
+            parse = $parse
             attachments = $attachments
         }
     
@@ -555,6 +564,13 @@ function Remove-slackMessage {
     .Description
         Delete messages from slack
     .Example
+        Get-slackChannels | ? name -match channelName  -pv aa | gskchhist | select ts,@{n='id';e={$aa.id}} | rmskmsg
+        Get-slackChannels | ? name -match channelName  -pv aa | gskchhist | select ts,@{n='channel';e={$aa.id}} | rmskmsg
+        Delete all messages from the channel
+    .Example
+        Get-slackChannels | ? name -match channelName -pv aa | gskchhist | ? text -match "text" | select ts,@{n='channel';e={$aa.id}} | rmskmsg
+        Delete message, by text match
+    .Example
         Get-slackChannels | ? name -match test | Get-slackChannelsHistory | ? text -match hello | rmskmsg -id (Get-slackChannels | ? name -match test).id
         Delete messages from the channel by text match
     .Example
@@ -565,7 +581,7 @@ function Remove-slackMessage {
     [CmdletBinding()]
     [Alias("Delete-slackMessage","delskmsg","rmskmsg")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
+        [Alias('channel')][Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$id,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$ts,
 
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
