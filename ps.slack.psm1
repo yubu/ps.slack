@@ -354,6 +354,9 @@ function Send-slackMessage {
         Get-Clipboard | out-string | Send-slackMessage -channel "#test"
         Paste and send the message
     .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq channelSource).id | Send-slackMessage -channel "#channelDestination"
+        Copy messages from channel to channel
+    .Example
         Get-slackIM | select id,@{n="user";e={(gskusrs | ? id -eq $_.user).name}} | ? user -match user | Send-slackMessage -text "Direct IM message"
         Send direct IM message
     .Example
@@ -386,7 +389,7 @@ function Send-slackMessage {
         # Pass true to post the message as the authed user, instead of as a bot
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$as_user=$true,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$parse="full",
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$attachments,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][array]$attachments,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unfurl_links=$true,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$unfurl_media=$true,
 
@@ -440,6 +443,9 @@ function Send-slackMessageAsBot {
         Get-Clipboard | out-string | Send-slackMessageAsBot -channel "#test" -username systemAlertBot
         Paste and send the message as a bot, named systemAlertBot
     .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq channelSource).id | Send-slackMessageAsBot -channel "#channelDestination" -emoji :exclamation: -as_user $false
+        Copy messages from channel to channel
+    .Example
         (get-vm | ? powerstate -match on | ? name -match centos | get-vmguest | select @{n="IPAddress";e={$_.IPAddress -like "10.10.20.*"}}).ipaddress | new-sshsession
         Get-SshSession | Invoke-SshCommand -command {hostname; df -h} | oss | Send-slackMessageAsBot -channel "#alerts" alertBot -emoji ":exclamation:"
         1. Connect to multiple Linux boxes, using VMware PowerCLI and SSH module
@@ -452,6 +458,9 @@ function Send-slackMessageAsBot {
     .Example
         Get-ZabbixAlert | ? sendto -match user | select @{n="Time(UTC+1)";e={(convertfrom-epoch $_.clock).addhours(1)}},alertid,subject | Out-String | sskmsgab -channel "#BlackFriday" alertBot -emoji ":boom:"
         Get Zabbix alerts for last 5 hours (default) and post to slack
+    .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq channelsource).id | Send-slackMessage -channel "#channeldest" -emoji :exclamation: -as_user $false -text {(($_.text).replace('<','').replace('>','')).split('|')[0]}
+        Copy messages with URLs from channel to channel
     #>
 
     [CmdletBinding()]
@@ -508,11 +517,17 @@ function Set-slackMessage {
         Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches | Set-slackMessage -text "New message here" -channel {$_.channel.id}
         Will replace existing message text with new one, in every occurrence
     .Example
-        Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches  | ? channel -match test | Set-slackMessage -text "EDIT MESSAGE" -channel {$_.channel.id}
+        Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match test | Set-slackMessage -text "EDIT MESSAGE" -channel {$_.channel.id}
         Will replace messages by query and in channel by match
     .Example
-        Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches  | ? channel -match test | select -skip 1 | Set-slackMessage -text {"$($_.text) Additional text"} -channel {$_.channel.id}
+        Search-slack -query "query" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match test | select -skip 1 | Set-slackMessage -text {"$($_.text) Additional text"} -channel {$_.channel.id}
         Will edit message by appending new text to existing one
+    .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq powershell).id | sort ts -desc |  ? text -match ":boy:" | Set-slackMessage -text {($_.text).replace(':boy:','')} -channel {$_.channel.id}
+        Will remove ghost emoji from the message(s)
+    .Example
+        Get-slackChannels | ? name -match powershell -pv aa | Get-slackChannelsHistory | ? text -match ":boy:" | Set-slackMessage -text {($_.text).replace(':boy:','')} -channel {$aa.id}
+        Will remove ghost emoji from the message(s)
     #>
 
     [CmdletBinding()]
@@ -564,8 +579,8 @@ function Remove-slackMessage {
     .Description
         Delete messages from slack
     .Example
-        Get-slackChannels | ? name -match channelName  -pv aa | gskchhist | select ts,@{n='id';e={$aa.id}} | rmskmsg
-        Get-slackChannels | ? name -match channelName  -pv aa | gskchhist | select ts,@{n='channel';e={$aa.id}} | rmskmsg
+        Get-slackChannels | ? name -match channelName -pv aa | gskchhist | select ts,@{n='id';e={$aa.id}} | rmskmsg
+        Get-slackChannels | ? name -match channelName -pv aa | gskchhist | select ts,@{n='channel';e={$aa.id}} | rmskmsg
         Delete all messages from the channel
     .Example
         Get-slackChannels | ? name -match channelName -pv aa | gskchhist | ? text -match "text" | select ts,@{n='channel';e={$aa.id}} | rmskmsg
@@ -576,6 +591,16 @@ function Remove-slackMessage {
     .Example
         Get-slackChannels | ? name -match test | delskmsg -ts (Get-slackChannels | ? name -match test | gskchhist | ? text -match "hello" | select -first 1).ts
         Delete messages from channel #test. Will delete only one message
+    .Example
+        Get-slackChannels | ? name -match powershell -pv aa | gskchhist | ? ts -gt "$(get-date -date '2/25/2019 12:00' | convertto-epoch)"| select ts,@{n='id';e={$aa.id}},text | sort ts -desc | rmskmsg
+        Delete messages newer than 2/25/2019 12:00 (UTC time)
+    .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq powershell).id | sort ts -desc | select -first 8 | delskmsg -channel {$_.channel.id}
+        Delete messages
+
+    .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | ? channel -match (Get-slackChannels | ? name -eq powershell).id | sort ts -desc | select -skiplast 2 | select ts,@{n='channel';e={$_.channel.id}} | delskmsg
+        Delete messages
     #>
 
     [CmdletBinding()]
@@ -675,6 +700,9 @@ function Search-slack {
         Search-slack -query "powershell" | select -ExpandProperty files | select -ExpandProperty matches | select @{n="created";e={convertfrom-epoch $_.created}},name,title,url_private_download 
         Search slack files
     .Example
+        Search-slack -query "powershell" | select -ExpandProperty messages | select -ExpandProperty matches | select text,@{n='channel';e={(gskch | ? id -Match $_.channel.id).name}} | fl *
+        search slack messages
+        .Example
         Search-slack -query "powershell" | select -ExpandProperty posts | select -ExpandProperty matches | ft -a
         Search posts
     .Example
@@ -685,8 +713,8 @@ function Search-slack {
     [CmdletBinding()]
     [Alias("ssk")]
     Param (
-        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$sort_dir,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$query,
+        [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$sort_dir,
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$count="1000",
         
         [Parameter(Mandatory=$False,ValueFromPipelineByPropertyName=$true)][string]$token=$global:slackToken,
