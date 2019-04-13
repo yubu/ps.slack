@@ -3063,13 +3063,13 @@ Function Add-slackReminders {
         Add reminders
     .Example
         Add-slackReminders -text "Eat banana" -time (convertto-epoch ((get-date).AddMinutes(25)).ToUniversalTime())
-        Create reminder, time is UTC
+        Create reminder, time in UTC
     .Example
         Add-slackReminders -text "Eat banana" -time ((get-date -date "10/15/2016 15:48").ToUniversalTime() | convertTo-epoch)
-        Add reminder, time is UTC
+        Add reminder, time in UTC
     .Example
         Get-slackUsers | ? name -match user | Add-slackReminders -text "Eat banana" -time (convertto-epoch ((get-date).AddHours(12)).ToUniversalTime())
-        Create reminder for user, time is UTC
+        Create reminder for user, time in UTC
         #>
 
     [CmdletBinding()]
